@@ -8,9 +8,11 @@ npm
 cake
 
 ## Running
-npm install
-cake build
-cake vert.x  # Will run a 'hello world' sample
+`npm install`
+
+`cake build`
+
+`cake vert.x`  This will run a 'hello world' sample
 
 ## Notes
 
