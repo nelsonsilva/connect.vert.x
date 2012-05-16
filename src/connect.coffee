@@ -10,7 +10,7 @@ class Server
     @server.requestHandler @handle
 
   use: (routeOrHandler, handler = null) ->
-    route = '/'
+    route = routeOrHandler
 
     if ('string' != typeof routeOrHandler)
       handler = routeOrHandler;
@@ -69,8 +69,11 @@ class Server
 
         return next(err)  if c and "/" isnt c and "." isnt c
         removed = layer.route
+
+        # Refactor to use url.parse
         req.url = {pathname: req.path.substr(removed.length)}
         req.url.pathname = "/" + req.url.pathname  unless "/" is req.url.pathname[0]
+
         layer.handler req, res, next
 
       catch e
