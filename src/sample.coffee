@@ -1,4 +1,4 @@
-load('node.vert.x.js')
+require('node.vert.x')
 
 connect = require('./connect')
 
