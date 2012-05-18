@@ -29,7 +29,6 @@ class App extends EventEmitter
           @routeMatcher[method] path,
             # Wrap the handler
             (req) =>
-              console.log "HERE"
               # Add the handler to the stack
               @stack.splice(pos,0, { route: req.path, handler: handler })
               @handle(req)
@@ -56,14 +55,10 @@ class App extends EventEmitter
     @stack.push { route: route, handler: fn }
     @
 
-
-  on: (evt, handler) -> stdout.print "Registered for event #{evt} of server\n"
-
   listen: (port, host = 'localhost') ->
     @vertxServer.listen(port, host)
 
   handle: (req) =>
-    #stdout.print "Handling request #{JSON.stringify(req)}\n"
     stack = @stack
     removed = ''
     index = 0
@@ -89,7 +84,6 @@ class App extends EventEmitter
 
         return
 
-      #console.log "Trying layer #{layer.route} for path #{req.path} with handler #{layer.handler}"
       try
         path = req.path
         path = "/"  unless path?
@@ -168,7 +162,7 @@ connect.logger = (options) ->
         res.end(chunk, encoding);
         line = fmt(req, res);
         return unless line?
-        stdout.print line + '\n'
+        console.log line + '\n'
 
     next();
 
