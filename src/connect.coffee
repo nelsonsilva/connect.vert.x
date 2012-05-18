@@ -1,40 +1,69 @@
 vertx = require('vertx')
 
-class Server
+{EventEmitter} = require('events')
+
+class App extends EventEmitter
 
   constructor: ->
     @stack = []
+    @route = '/'
 
-    @server = vertx.createHttpServer()
+    @vertxServer = vertx.createHttpServer()
 
-    @server.requestHandler @handle
+    @routeMatcher = new vertx.RouteMatcher()
 
-  use: (routeOrHandler, handler = null) ->
-    route = routeOrHandler
+    @routeMatcher.noMatch @handle
 
-    if ('string' != typeof routeOrHandler)
-      handler = routeOrHandler;
+    @vertxServer.requestHandler @routeMatcher
+
+  use: (route, fn) ->
+
+    pos = @stack.length - 1
+
+    # Check for routes
+    if route.routes?
+      for route in route.routes
+        do =>
+          {method, path, handler} = route
+          # Add the route
+          @routeMatcher[method] path,
+            # Wrap the handler
+            (req) =>
+              console.log "HERE"
+              # Add the handler to the stack
+              @stack.splice(pos,0, { route: req.path, handler: handler })
+              @handle(req)
+              @stack.splice(pos,1) # Remove it from the stack
+
+      return @
+
+    # default route to '/'
+    if ('string' != typeof route)
+      fn = route
       route = '/'
 
     # wrap sub-apps
-    if ('function' == typeof handler)
-      appHandler = handler
-      handler = (req, res, next) ->
-        appHandler(req, res, next);
+    if ('function' == typeof fn.handle)
+      server = fn
+      fn.route = route
+      fn = (req, res, next) ->
+        server.handle(req, res, next)
 
     # normalize route to not trail with slash
     if ('/' == route[route.length - 1])
       route = route.substr(0, route.length - 1);
 
-    @stack.push { route: route, handler: handler }
+    @stack.push { route: route, handler: fn }
     @
 
 
   on: (evt, handler) -> stdout.print "Registered for event #{evt} of server\n"
 
-  listen: (port, host = 'localhost') ->  @server.listen(port, host)
+  listen: (port, host = 'localhost') ->
+    @vertxServer.listen(port, host)
 
   handle: (req) =>
+    #stdout.print "Handling request #{JSON.stringify(req)}\n"
     stack = @stack
     removed = ''
     index = 0
@@ -59,6 +88,8 @@ class Server
           res.end "Cannot " + req.method + " " + req.url
 
         return
+
+      #console.log "Trying layer #{layer.route} for path #{req.path} with handler #{layer.handler}"
       try
         path = req.path
         path = "/"  unless path?
@@ -74,6 +105,8 @@ class Server
         req.url = {pathname: req.path.substr(removed.length)}
         req.url.pathname = "/" + req.url.pathname  unless "/" is req.url.pathname[0]
 
+        res.writeHead = (@statusCode, headers) ->  @putAllHeaders headers
+
         layer.handler req, res, next
 
       catch e
@@ -85,7 +118,11 @@ class Server
     index = 0
     next()
 
-connect = -> new Server()
+connect = ->
+  #app(req, res) -> app.handle(req, res)
+  app = new App
+  app.use argument for argument in arguments
+  app
 
 connect.static = (path) ->
    (req, res, next) ->
@@ -135,6 +172,30 @@ connect.logger = (options) ->
 
     next();
 
-connect.router = require('./router')
+connect.router = (fn) ->
+    app =
+      routes: []
+
+    methods = ["get", "post", "delete", "put"]
+    for method in methods
+      do (method) ->
+        app[method] = (path, handler) ->
+          app.routes.push {method: method, path: path, handler: handler}
+
+    fn app
+    app
+
+
+connect.favicon = (path, options) ->
+  options ?= {}
+  path ?=  __dirname + '/../public/favicon.ico'
+  maxAge = options.maxAge || 86400000;
+
+  (req, res, next) ->
+    return next() if ('/favicon.ico' != req.url)
+    vertx.fileSystem.exists path, (err, res) ->
+      return next() unless res
+      req.response.sendFile(path)
+
 
 module.exports = connect
